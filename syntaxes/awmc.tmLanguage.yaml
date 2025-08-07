@@ -1,0 +1,157 @@
+$schema: "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json"
+name: Awmc
+patterns:
+  - include: "#comment"
+  - include: "#bpm"
+  - include: "#tempo"
+  - include: "#tap"
+  - include: "#arctap"
+  - include: "#h"
+  - include: "#arc_header"
+  - include: "#arc_id_desc"
+  - include: "#separator"
+  - include: "#params"
+  - include: "#timing_group"
+
+repository:
+  # common patterns
+  unsigned_int:
+    patterns:
+      - name: invalid.illegal.wmc
+        match: \-
+      - name: constant.numeric.wmc
+        match: (?:[1-9][0-9]*)|0
+
+  positive_int:
+    patterns:
+      - name: constant.numeric.wmc
+        match: "[1-9][0-9]*"
+
+  unsigned_float:
+    patterns:
+      - name: invalid.illegal.wmc
+        match: \-
+      - name: constant.numeric.wmc
+        match: (?:(?:[1-9][0-9]*)|0)(?:\.[0-9]+)?
+
+  float:
+    patterns:
+      - name: constant.numeric.wmc
+        match: \-?(?:(?:[1-9][0-9]*)|0)(?:\.[0-9]+)?
+
+  comment:
+    patterns:
+      - name: comment.line.percentage.awmc
+        match: \%.*$
+
+  bpm:
+    patterns:
+      - begin: \{
+        beginCaptures:
+          0:
+            name: punctation.definition.bpm.begin.wmc
+        end: \}
+        endCaptures:
+          0:
+            name: punctation.definition.bpm.end.wmc
+        contentName: constant.numeric.wmc
+        patterns:
+          - include: "#unsigned_float"
+
+  tempo:
+    patterns:
+      - begin: \(
+        beginCaptures:
+          0:
+            name: punctation.definition.tempo.begin.wmc
+        contentName: constant.numeric.wmc
+        patterns:
+          - include: "#positive_int"
+        end: \)
+        endCaptures:
+          0:
+            name: punctation.definition.tempo.end.wmc
+
+  tap:
+    patterns:
+      - name: support.type.tap.wmc
+        match: "[1-4]"
+
+  h:
+    patterns:
+      - name: support.function.hold.wmc
+        match: "[hH]"
+
+  arctap:
+    patterns:
+      - match: "([sS])([a-zA-Z0-9_]+)"
+        captures:
+          1:
+            name: support.function.arctap.wmc
+          2:
+            name: entity.name.tag.wmc
+
+  params:
+    patterns:
+      - begin: \[
+        beginCaptures:
+          0:
+            name: punctuation.definition.params.begin.wmc
+        end: \]
+        endCaptures:
+          0:
+            name: punctuation.definition.params.end.wmc
+        patterns:
+          - include: "#float"
+          - match: ","
+            name: punctuation.separator.coordinates.wmc
+          - match: ":"
+            name: punctuation.separator.time-range.wmc
+
+  arc_header:
+    begin: "([rR])|([bB])|([gG])|([tT])"
+    beginCaptures:
+      1:
+        name: support.function.arc.shape.red.wmc
+      2:
+        name: support.function.arc.shape.blue.wmc
+      3:
+        name: support.function.arc.shape.green.wmc
+      4:
+        name: support.function.arc.shape.trace.wmc
+
+    patterns:
+      - match: "-"
+        name: punctuation.separator.arc-header.wmc
+
+    end: "SISI|SISO|SOSI|SOSO|SI|SO|S|B|sisi|siso|sosi|soso|si|so|s|b"
+    endCaptures:
+      0:
+        name: support.class.arc.shape.wmc
+
+  arc_id_desc:
+    patterns:
+      - match: (#)([a-zA-Z0-9_]+)
+        captures:
+          1:
+            name: support.class.arc.id.wmc
+          2:
+            name: entity.name.tag.wmc
+
+  separator:
+    patterns:
+      - match: ","
+        name: keyword.control.next.wmc
+      - match: "/"
+        name: keyword.control.concurrent.wmc
+
+  timing_group:
+    patterns:
+      - match: (@)\s*([a-zA-Z0-9_]+)
+        captures:
+          1:
+            name: support.class.timing_group.wmc
+          2:
+            name: entity.name.tag.timing_group.wmc
+
+scopeName: source.awmc
