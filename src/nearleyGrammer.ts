@@ -26,7 +26,7 @@ function $(o) {
 }
 
 
-import { Arc, ArcTap, Tap, Hold, Bpm, Tempo, Document, NoteList, Position, Duration } from "./grammar/model";
+import { Arc, ArcTap, ArcEnd, Tap, Hold, Bpm, Tempo, Document, NoteList, Position, Duration } from "./grammar/model";
 
 interface NearleyToken {
   value: any;
@@ -219,32 +219,32 @@ const grammar: Grammar = {
         }
         },
     {"name": "land_position", "symbols": [/[1-4]/], "postprocess": d => parseInt(d[0])},
-    {"name": "arc$ebnf$1$subexpression$1", "symbols": ["IGNORE", "arc_id"]},
-    {"name": "arc$ebnf$1", "symbols": ["arc$ebnf$1$subexpression$1"], "postprocess": id},
-    {"name": "arc$ebnf$1", "symbols": [], "postprocess": () => null},
-    {"name": "arc$ebnf$2$subexpression$1", "symbols": ["IGNORE", "timing_group_id"]},
+    {"name": "arc$ebnf$1$subexpression$1", "symbols": ["IGNORE", {"literal":"-"}, "IGNORE", "arc_shape", "IGNORE", "position", "IGNORE", "duration"]},
+    {"name": "arc$ebnf$1", "symbols": ["arc$ebnf$1$subexpression$1"]},
+    {"name": "arc$ebnf$1$subexpression$2", "symbols": ["IGNORE", {"literal":"-"}, "IGNORE", "arc_shape", "IGNORE", "position", "IGNORE", "duration"]},
+    {"name": "arc$ebnf$1", "symbols": ["arc$ebnf$1", "arc$ebnf$1$subexpression$2"], "postprocess": (d) => d[0].concat([d[1]])},
+    {"name": "arc$ebnf$2$subexpression$1", "symbols": ["IGNORE", "arc_id"]},
     {"name": "arc$ebnf$2", "symbols": ["arc$ebnf$2$subexpression$1"], "postprocess": id},
     {"name": "arc$ebnf$2", "symbols": [], "postprocess": () => null},
-    {"name": "arc", "symbols": ["arc_color", "IGNORE", {"literal":"-"}, "IGNORE", "arc_shape", "IGNORE", "position", "IGNORE", "position", "IGNORE", "duration", "arc$ebnf$1", "arc$ebnf$2"], "postprocess": 
-        function ([color, ignore1, dash, ignore2, shape, ignore3, start, ignore4, end, ignore5, duration, arc_id, timing_group_id], loc) {
+    {"name": "arc$ebnf$3$subexpression$1", "symbols": ["IGNORE", "timing_group_id"]},
+    {"name": "arc$ebnf$3", "symbols": ["arc$ebnf$3$subexpression$1"], "postprocess": id},
+    {"name": "arc$ebnf$3", "symbols": [], "postprocess": () => null},
+    {"name": "arc", "symbols": ["arc_color", "IGNORE", "position", "arc$ebnf$1", "arc$ebnf$2", "arc$ebnf$3"], "postprocess": 
+        function ([color, ignore1, start, ends, arc_id, timing_group_id], loc) {
             return new Arc(
               color,
-              arc_id ? arc_id[1] : null,
-              shape,
               start,
-              end,
-              duration,
+              ends.map(e => new ArcEnd(e[3], e[5], e[7])),
+              arc_id ? arc_id[1] : null,
               timing_group_id ? timing_group_id[1] : "default",
               loc
             );
         }
         },
-    {"name": "arc_id$ebnf$1", "symbols": [/[a-zA-Z0-9_]/]},
-    {"name": "arc_id$ebnf$1", "symbols": ["arc_id$ebnf$1", /[a-zA-Z0-9_]/], "postprocess": (d) => d[0].concat([d[1]])},
-    {"name": "arc_id", "symbols": [{"literal":"#"}, "IGNORE", "arc_id$ebnf$1"], "postprocess": d => d[2].join("")},
-    {"name": "timing_group_id$ebnf$1", "symbols": [/[a-zA-Z0-9_]/]},
-    {"name": "timing_group_id$ebnf$1", "symbols": ["timing_group_id$ebnf$1", /[a-zA-Z0-9_]/], "postprocess": (d) => d[0].concat([d[1]])},
-    {"name": "timing_group_id", "symbols": [{"literal":"@"}, "IGNORE", "timing_group_id$ebnf$1"], "postprocess": d => d[2].join("")},
+    {"name": "names", "symbols": [/[a-zA-Z0-9_]/, "names"], "postprocess": d => d[0] + d[1]},
+    {"name": "names", "symbols": [/[a-zA-Z0-9_]/], "postprocess": d => d[0]},
+    {"name": "arc_id", "symbols": [{"literal":"#"}, "IGNORE", "names"], "postprocess": d => d[2]},
+    {"name": "timing_group_id", "symbols": [{"literal":"@"}, "IGNORE", "names"], "postprocess": d => d[2]},
     {"name": "arc_color", "symbols": [/[RGBTrgbt]/], "postprocess": id},
     {"name": "arc_shape$subexpression$1", "symbols": [/[sS]/, /[iI]/, /[sS]/, /[oO]/], "postprocess": function(d) {return d.join(""); }},
     {"name": "arc_shape", "symbols": ["arc_shape$subexpression$1"], "postprocess": id},

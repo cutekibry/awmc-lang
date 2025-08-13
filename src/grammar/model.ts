@@ -1,217 +1,249 @@
 import { ArcDurationConflictError, ArcIdNotFoundError, ArctapRequireTimeNotHitError, IError } from "./exceptions";
+import { Status } from "./resolver";
 
-interface IArcEntry {
-    codeLocation: number;
-    duration: Duration;
-}
-
-export class Status {
-    currentTime: number = 0;
-    arcEntries: Record<string, IArcEntry> = {};
-    bpm: number = 0.0;
-    tempo: number = 0;
-    errors: IError[] = [];
-
-    reset() {
-        this.currentTime = 0;
-        this.arcEntries = {};
-        this.bpm = 0;
-        this.tempo = 0;
-        this.errors = [];
-    }
-    stepOneTick() {
-        this.currentTime += this.timePerTick();
-    }
-    timePerTick(): number { // in miliseconds
-        return 60000.0 / this.bpm / this.tempo;
-    }
-    timePerBeat(): number { // in miliseconds
-        return 60000.0 / this.bpm;
-    }
-}
-export const STATUS = new Status();
+const INVALID_LOC = -1;
 
 
-
-interface IElement {
+interface ICodeElement {
     type: string;
+    loc: number;
 }
 
-export class Document implements IElement {
+export class Document implements ICodeElement {
     type: "Document" = "Document";
+    loc: number;
+
     elements: (NoteList | IEventElement)[];
 
-    constructor(elements: (NoteList | IEventElement)[]) {
+    constructor(loc: number, elements: (NoteList | IEventElement)[]) {
+        this.loc = loc;
         this.elements = elements;
     }
 }
 
-export class NoteList implements IElement {
+export class NoteList implements ICodeElement {
     type: "NoteList" = "NoteList";
+    loc: number;
+
     notes: INoteElement[];
 
-    constructor(notes: INoteElement[]) {
+    constructor(loc: number, notes: INoteElement[]) {
+        this.loc = loc;
         this.notes = notes;
-
-        STATUS.stepOneTick();
     }
 }
 
 
-interface IElementWithTimingGroupId extends IElement {
+interface INoteElement extends ICodeElement {
     timingGroupId: string;
-}
-interface INoteElement extends IElementWithTimingGroupId { }
-interface IEventElement extends IElementWithTimingGroupId { }
 
+    resolve(status: Status): void;
+}
+interface IEventElement extends ICodeElement {
+    resolve(status: Status): void;
+}
 interface INoteElementWithDuration extends INoteElement {
     duration: Duration;
 }
-interface INoteElementWithTimePosition extends INoteElement {
-    timePosition: number;
-}
+
+
 
 export class Bpm implements IEventElement {
     type: "Bpm" = "Bpm";
+    loc: number;
+
     bpm: number;
 
-    timingGroupId: string;
+    r_time: number | null = null;
 
-    constructor(bpm: number, timingGroupId: string) {
+    constructor(loc: number, bpm: number) {
+        this.loc = loc;
         this.bpm = bpm;
-        this.timingGroupId = timingGroupId;
-
-        STATUS.bpm = bpm;
     }
+
+    public resolve(status: Status): void {
+        status.bpm = this.bpm;
+        this.r_time = status.currentTime;
+    }
+
 }
 export class Tempo implements IEventElement {
     type: "Tempo" = "Tempo";
+    loc: number;
+
     tempo: number;
 
-    timingGroupId: string;
+    r_time: number | null = null;
 
-    constructor(tempo: number, timingGroupId: string) {
+    constructor(loc: number, tempo: number) {
+        this.loc = loc;
         this.tempo = tempo;
-        this.timingGroupId = timingGroupId;
+    }
 
-        STATUS.tempo = tempo;
+    public resolve(status: Status): void {
+        status.tempo = this.tempo;
+        this.r_time = status.currentTime;
+    }
+}
+
+export class ArcEnd implements ICodeElement {
+    type: "ArcEnd" = "ArcEnd";
+    loc: number;
+
+    shape: "SISI" | "SISO" | "SOSI" | "SOSO" | "SI" | "SO" | "S" | "B";
+    end: Position;
+    duration: Duration;
+
+    r_time: number | null = null;
+
+    constructor(loc: number, shape: string, end: Position, duration: Duration) {
+        this.loc = loc;
+
+        this.shape = shape.toUpperCase() as "SISI" | "SISO" | "SOSI" | "SOSO" | "SI" | "SO" | "S" | "B";
+        this.end = end;
+        this.duration = duration;
     }
 }
 
 export class Arc implements INoteElementWithDuration {
     type: "Arc" = "Arc";
+    loc: number;
+
     color: "R" | "G" | "B" | "T";
-    shape: "SISI" | "SISO" | "SOSI" | "SOSO" | "SI" | "SO" | "S" | "B";
     start: Position;
-    end: Position;
-    duration: Duration;
+    ends: ArcEnd[];
     id: string | null;
+    duration: Duration;
 
     timingGroupId: string;
 
-    constructor(color: string, id: string | null, shape: string, start: Position, end: Position, duration: Duration, timingGroupId: string, codeLocation: number) {
+    r_start: number | null = null;
+    r_end: number | null = null;
+
+    constructor(color: string, start: Position, ends: ArcEnd[], id: string | null, timingGroupId: string, codeLocation: number) {
         this.color = color.toUpperCase() as "R" | "G" | "B" | "T";
-        this.shape = shape.toUpperCase() as "SISI" | "SISO" | "SOSI" | "SOSO" | "SI" | "SO" | "S" | "B";
         this.start = start;
-        this.end = end;
-        this.duration = duration;
+        this.ends = ends;
         this.id = id;
         this.timingGroupId = timingGroupId;
 
-        console.log("Arc", this.id, this.duration.start, this.duration.end);
+        this.duration = ends.reduce(
+            (acc, end) => Duration.add(acc, end.duration),
+            new Duration(INVALID_LOC, 1, 0)
+        );
+    }
 
-        if (this.id !== null) {
-            if (STATUS.arcEntries[this.id] !== undefined && STATUS.arcEntries[this.id].duration.end > this.duration.start)
-                STATUS.errors.push(new ArcDurationConflictError(
-                    codeLocation,
-                    STATUS.arcEntries[this.id].codeLocation,
-                    this.id,
-                    this.duration,
-                    STATUS.arcEntries[this.id].duration
-                ));
+    public resolve(status: Status): void {
+        this.r_start = status.currentTime;
 
-            STATUS.arcEntries[this.id] = {
-                codeLocation: codeLocation,
-                duration: this.duration
-            };
+        let endTime = this.r_start;
+
+        for (const end of this.ends) {
+            endTime += end.duration.y / end.duration.x * status.timePerBeat();
+            end.r_time = endTime;
         }
+
+        this.r_end = status.currentTime + this.duration.y / this.duration.x * status.timePerBeat();
     }
 }
-export class ArcTap implements INoteElementWithTimePosition {
+export class ArcTap implements INoteElement {
     type: "ArcTap" = "ArcTap";
+    loc: number;
+
     arcId: string;
 
-    timePosition: number;
     timingGroupId: string;
 
-    constructor(arcId: string, timingGroupId: string, codeLocation: number) {
-        if (STATUS.arcEntries[arcId] === undefined)
-            STATUS.errors.push(new ArcIdNotFoundError(codeLocation, arcId));
+    r_belongsTo: Arc | null = null;
+    r_time: number | null = null;
 
-        else if (STATUS.arcEntries[arcId].duration.end < STATUS.currentTime)
-            STATUS.errors.push(new ArctapRequireTimeNotHitError(
-                codeLocation,
-                arcId,
-                STATUS.arcEntries[arcId].codeLocation,
-                STATUS.currentTime,
-                { start: STATUS.arcEntries[arcId].duration.start, end: STATUS.arcEntries[arcId].duration.end }
-            ));
-
+    constructor(loc: number, arcId: string, timingGroupId: string) {
+        this.loc = loc;
         this.arcId = arcId;
         this.timingGroupId = timingGroupId;
-        this.timePosition = STATUS.currentTime;
+    }
+
+    public resolve(status: Status): void {
+        this.r_time = status.currentTime;
     }
 }
-export class Tap implements INoteElementWithTimePosition {
+export class Tap implements INoteElement {
     type: "Tap" = "Tap";
+    loc: number;
+
     position: 1 | 2 | 3 | 4;
 
-    timePosition: number;
     timingGroupId: string;
 
-    constructor(position: number, timingGroupId: string) {
+    r_time: number | null = null;
+
+    constructor(loc: number, position: number, timingGroupId: string) {
+        this.loc = loc;
         this.position = position as 1 | 2 | 3 | 4;
         this.timingGroupId = timingGroupId;
-        this.timePosition = STATUS.currentTime;
     }
 }
 
 export class Hold implements INoteElementWithDuration {
     type: "Hold" = "Hold";
-    position: 1 | 2 | 3 | 4;
+    loc: number;
 
+    position: 1 | 2 | 3 | 4;
     duration: Duration;
     timingGroupId: string;
 
-    constructor(position: number, duration: Duration, timingGroupId: string) {
+    r_start: number | null = null;
+    r_end: number | null = null;
+
+    constructor(loc: number, position: number, duration: Duration, timingGroupId: string) {
+        this.loc = loc;
         this.position = position as 1 | 2 | 3 | 4;
         this.duration = duration;
         this.timingGroupId = timingGroupId;
     }
 }
 
-export class Position implements IElement {
+export class Position implements ICodeElement {
     type: "Position" = "Position";
+    loc: number;
+
     x: number;
     y: number;
 
-    constructor(x: number, y: number) {
+    constructor(loc: number, x: number, y: number) {
+        this.loc = loc;
         this.x = x;
         this.y = y;
     }
 }
 
-export class Duration implements IElement {
+function gcd(a: number, b: number): number {
+    if (!Number.isInteger(a) || !Number.isInteger(b))
+        throw new Error("a and b must be integers but got " + a + " and " + b);
+
+    while (b !== 0) {
+        const temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return a;
+}
+
+export class Duration implements ICodeElement {
     type: "Duration" = "Duration";
+    loc: number;
+
     x: number;
     y: number;
-    start: number;
-    end: number;
 
-    constructor(x: number, y: number) {
+    constructor(loc: number, x: number, y: number) {
+        this.loc = loc;
         this.x = x;
         this.y = y;
-        this.start = STATUS.currentTime;
-        this.end = this.start + y / x * STATUS.timePerBeat();
+    }
+
+    static add(a: Duration, b: Duration): Duration {
+        const lcm = a.x * b.x / gcd(a.x, b.x);
+        return new Duration(INVALID_LOC, lcm, a.y * lcm / a.x + b.y * lcm / b.x);
     }
 }

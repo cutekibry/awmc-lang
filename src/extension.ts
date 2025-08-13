@@ -4,6 +4,7 @@ import * as nearley from "nearley";
 
 import grammar from "./nearleyGrammer";
 import { STATUS } from './grammar/model';
+import { firstSmallerOrEqual } from './utils';
 
 let diagnosticCollection: vscode.DiagnosticCollection;
 
@@ -48,21 +49,6 @@ interface NearleyParseError {
 	token: { value: string };
 }
 
-function firstSmallerOrEqual(arr: number[], target: number) {
-	if (arr.length === 0 || arr[0] > target)
-		return -1;
-
-	let l = 0;
-	let r = arr.length - 1;
-	while (l < r) {
-		const mid = Math.floor((l + r + 1) / 2);
-		if (arr[mid] <= target)
-			l = mid;
-		else
-			r = mid - 1;
-	}
-	return l;
-}
 
 function tryParse(text: string, uri: vscode.Uri) {
 	STATUS.reset();
@@ -92,10 +78,9 @@ function tryParse(text: string, uri: vscode.Uri) {
 					)
 				}
 			));
-			return null;
 		}
 
-		return parser.results[0];
+		return parser.results;
 	} catch (err: any) {
 		console.error(err);
 		const parseError = err as NearleyParseError;

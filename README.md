@@ -22,11 +22,12 @@ It is inspired by the **Majdata** language, providing a more concise and readabl
     % Red Arc with "siso" shape,
     % from (-1.0, 0.0) to (1.0, 0.0),
     % with 3 quarter (1/4) notes duration
-    R-siso[-1.0, 0.0][1, 0.0][4:3],
-    B-b[0.0, 0.0][1, 0.0][4:3], % Blue Arc
+    R[-1.0, 0.0]-siso[1, 0.0][4:3],
+    B[0.0, 0.0]-b[1, 0.0][4:3], % Blue Arc
 {4}
-    T-so[-1.0, 0.0][1, 0.0][2:1], % Arc trace
-    T-so[-1.0, 0.0][1, 0.0][4:1]#1, % Arc trace with id=1 (can be used for arctap)
+    T[-1.0, 0.0]-so[1, 0.0][2:1], % Arc trace
+    T[-1.0, 0.0]-so[1, 0.0][4:1]#1, % Arc trace with id=1 (can be used for arctap)
+    T[-1.0, 0.0]-so[1, 0.0][4:1]-so[-1.0, 0.0][4:1]#2, % Arc trace with id=1 (can be used for arctap)
 {2}
     s1, % Arctap on arc trace with id=1
     2h[4:1], % Hold
@@ -37,9 +38,11 @@ It is inspired by the **Majdata** language, providing a more concise and readabl
     4, 
 
 (120) % BPM changed
-    T-si[0, 0][0, 0.25][4:1]#1, % Can use the same id as long as no overlap
+    T[0, 0]-si[0, 0.25][4:1]#1, % Can use the same id as long as no overlap
 
 % Indentations, endlines, and spaces are usually ignored
 3,4,
         5, 
+    T[-1.0, 0.0]-so[1, 0.0][4:1]
+                -so[-1, 0.0][4:1],
 ```

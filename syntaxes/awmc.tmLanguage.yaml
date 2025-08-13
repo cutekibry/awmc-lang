@@ -8,6 +8,8 @@ patterns:
   - include: "#arctap"
   - include: "#h"
   - include: "#arc_header"
+  - include: "#arc_sep"
+  - include: "#arc_shape"
   - include: "#arc_id_desc"
   - include: "#separator"
   - include: "#params"
@@ -109,24 +111,26 @@ repository:
             name: punctuation.separator.time-range.wmc
 
   arc_header:
-    begin: "([rR])|([bB])|([gG])|([tT])"
-    beginCaptures:
-      1:
-        name: support.function.arc.shape.red.wmc
-      2:
-        name: support.function.arc.shape.blue.wmc
-      3:
-        name: support.function.arc.shape.green.wmc
-      4:
-        name: support.function.arc.shape.trace.wmc
+    patterns:
+      - match: "([rR])|([bB])|([gG])|([tT])"
+        captures:
+          1:
+            name: support.function.arc.shape.red.wmc
+          2:
+            name: support.function.arc.shape.blue.wmc
+          3:
+            name: support.function.arc.shape.green.wmc
+          4:
+            name: support.function.arc.shape.trace.wmc
 
+  arc_sep:
     patterns:
       - match: "-"
         name: punctuation.separator.arc-header.wmc
 
-    end: "SISI|SISO|SOSI|SOSO|SI|SO|S|B|sisi|siso|sosi|soso|si|so|s|b"
-    endCaptures:
-      0:
+  arc_shape:
+    patterns:
+      - match: "SISI|SISO|SOSI|SOSO|SI|SO|S|B|sisi|siso|sosi|soso|si|so|s|b"
         name: support.class.arc.shape.wmc
 
   arc_id_desc:

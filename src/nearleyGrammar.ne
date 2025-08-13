@@ -3,7 +3,7 @@
 @builtin "postprocessors.ne"
 
 @{%
-import { Arc, ArcTap, Tap, Hold, Bpm, Tempo, Document, NoteList, Position, Duration } from "./grammar/model";
+import { Arc, ArcTap, ArcEnd, Tap, Hold, Bpm, Tempo, Document, NoteList, Position, Duration } from "./grammar/model";
 %}
 
 doc -> doc_element:* {%
@@ -77,15 +77,14 @@ tap -> land_position (IGNORE timing_group_id):? {%
 
 land_position -> [1-4] {% d => parseInt(d[0]) %}
 
-arc -> arc_color IGNORE "-" IGNORE arc_shape IGNORE position IGNORE position IGNORE duration (IGNORE arc_id):? (IGNORE timing_group_id):?  {%
-    function ([color, ignore1, dash, ignore2, shape, ignore3, start, ignore4, end, ignore5, duration, arc_id, timing_group_id], loc) {
+arc -> arc_color IGNORE position
+       (IGNORE "-" IGNORE arc_shape IGNORE position IGNORE duration):+ (IGNORE arc_id):? (IGNORE timing_group_id):?  {%
+    function ([color, ignore1, start, ends, arc_id, timing_group_id], loc) {
         return new Arc(
           color,
-          arc_id ? arc_id[1] : null,
-          shape,
           start,
-          end,
-          duration,
+          ends.map(e => new ArcEnd(e[3], e[5], e[7])),
+          arc_id ? arc_id[1] : null,
           timing_group_id ? timing_group_id[1] : "default",
           loc
         );
@@ -93,8 +92,10 @@ arc -> arc_color IGNORE "-" IGNORE arc_shape IGNORE position IGNORE position IGN
 %}
 
 
-arc_id -> "#" IGNORE [a-zA-Z0-9_]:+ {% d => d[2].join("") %}
-timing_group_id -> "@" IGNORE [a-zA-Z0-9_]:+ {% d => d[2].join("") %}
+names -> [a-zA-Z0-9_]:+ {% d => d[0].join("") %}
+
+arc_id -> "#" IGNORE names {% d => d[2] %}
+timing_group_id -> "@" IGNORE names {% d => d[2] %}
 
 arc_color -> [RGBTrgbt] {% id %}
 
